@@ -98,6 +98,13 @@ public final class ConversionQueueManager: ObservableObject {
         startProcessingLoopIfNeeded()
     }
 
+    public func loadPreviewItemsForTesting(_ previewItems: [ConversionQueueItem]) {
+        items = previewItems
+        if selectedItemID == nil {
+            selectedItemID = previewItems.first?.id
+        }
+    }
+
     public func cancel(itemID: UUID) {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
 
