@@ -14,21 +14,36 @@ Usar a tipografia do sistema em títulos, nomes de arquivo, ações e avisos. Re
 
 ## Layout
 
-Janela redimensionável com barra de ferramentas e divisor nativo. A lista à esquerda começa com cerca de 250 pt e mostra nome completo na descrição acessível. O painel à direita mantém o nome do arquivo, seu estado e as ações do resultado junto ao conteúdo. Usar espaçamento de 8, 16 e 24 pt onde houver composição própria. Verificar a janela mínima com nomes longos, avisos em várias linhas e documentos extensos.
+Janela redimensionável com barra de ferramentas e divisor nativo. Usar 960 × 640 pt como referência inicial, 720 × 480 pt como referência mínima e cerca de 250 pt para a lista. O nome completo fica disponível na descrição acessível. Usar espaçamento de 8, 16 e 24 pt na composição própria. Na menor janela, o painel faz quebra de linha e rola sem esconder as ações.
+
+```text
+MarkItDown                         [Adicionar arquivos… ⌘O]
+─────────────────────┬────────────────────────────────────────
+Arquivos             │ ata-reunião.pdf
+› ata-reunião.pdf    │ Concluído com avisos
+  Com avisos         │ OCR aplicado. Página 3 sem texto.
+                     │ [Copiar Markdown] [Salvar Markdown…]
+  recibo.jpg         ├────────────────────────────────────────
+  Convertendo        │ ## Página 1
+  [Cancelar]         │ Ata da reunião
+                     │
+  orçamento.xlsx     │ ## Página 2
+  Em fila            │ Lista de participantes
+```
 
 | Situação | Comportamento |
 | --- | --- |
 | Sem arquivos | Mostrar **Adicionar arquivos…**, opção de arrastar e formatos aceitos. Após a primeira importação, a janela continua aceitando arquivos arrastados. |
-| Em fila ou convertendo | Exibir estado na linha. Para OCR em PDF, mostrar a página atual e o total. Usar progresso indeterminado nas etapas sem medição e mostrar **Cancelar** para o item ativo. |
+| Em fila ou convertendo | Exibir estado na linha. Para OCR em PDF, usar **Lendo página N de M**. Nas demais etapas sem medição, usar progresso indeterminado. **Cancelar** aparece na linha ativa e pode ser acionado enquanto outro resultado está selecionado. |
 | Concluído | Mostrar Markdown selecionável e habilitar **Copiar Markdown** e **Salvar Markdown…**. Quando houve OCR, informar no painel. |
 | Concluído com avisos | Mostrar quais páginas ficaram sem resultado. Manter o resultado parcial disponível para cópia e exportação. |
-| Falhou ou cancelado | Mostrar a causa em linguagem direta no item afetado e manter a lista navegável. |
+| Falhou ou cancelado | Mostrar a causa em linguagem direta no item selecionado e manter a lista navegável. Para PDF protegido, orientar a adicionar uma cópia desbloqueada. Para ausência de texto, exibir **Nenhum texto reconhecido**. |
 
 ## Components
 
-- **Barra de ferramentas e menus.** **Adicionar arquivos…** (`⌘O`) abre o seletor. **Salvar Markdown…** (`⌘S`) abre o painel nativo quando há resultado. **Copiar Markdown** copia o resultado integral. `⌘C` continua disponível para copiar uma seleção de texto.
-- **Lista.** Seleção e navegação por teclado. Cada linha anuncia nome e estado no VoiceOver. A atualização do progresso preserva seleção e foco. O estado final é anunciado sem interromper a leitura de outro item.
-- **Painel do resultado.** Usar texto selecionável, com avisos próximos ao conteúdo afetado. A exportação usa o painel nativo do sistema. As transições seguem a preferência de redução de movimento.
+- **Barra de ferramentas e menus.** **Adicionar arquivos…** (`⌘O`) abre o seletor. **Salvar Markdown…** (`⌘S`) abre o painel nativo quando há resultado. **Copiar Markdown** copia o resultado integral e confirma a ação junto ao botão. `⌘C` continua disponível para copiar uma seleção de texto.
+- **Lista.** Selecionar o primeiro item quando a lista estava vazia. Novas importações e atualizações de progresso preservam seleção e foco. Cada linha anuncia nome e estado no VoiceOver. Para arquivos homônimos, exibir e anunciar o trecho da pasta de origem que diferencia as entradas. Anunciar a conclusão do item selecionado, sem deslocar o foco ou repetir cada página. A ação **Cancelar conversão** da linha ativa é acessível por teclado e VoiceOver.
+- **Painel do resultado.** Usar texto selecionável, com avisos acima do Markdown. Ao abrir o painel de salvamento, vincular a ação ao resultado selecionado naquele momento. A confirmação de substituição identifica o destino. Ao concluir, mostrar confirmação junto à ação. Em falha de gravação, manter a saída disponível e permitir escolher outro destino. As transições respeitam a preferência de redução de movimento.
 
 ## Arquitetura
 
@@ -58,14 +73,15 @@ PDFKit inspeciona o texto de cada página. Para o MVP, uma página sem caractere
 
 ### Operação e falhas
 
-- A fila mantém `Em fila`, `Convertendo`, `Concluído`, `Concluído com avisos`, `Falhou` e `Cancelado`. Cada resultado pertence à identidade da linha, inclusive para arquivos com nomes iguais.
-- Cancelar encerra o subprocesso quando aplicável, ou interrompe o OCR entre páginas e descarta retornos pendentes. A fila só inicia o item seguinte quando o trabalho ativo terminou ou foi encerrado. Uma resposta tardia não publica resultado cancelado.
+- A fila mantém `Em fila`, `Convertendo`, `Cancelando…`, `Concluído`, `Concluído com avisos`, `Falhou` e `Cancelado`. Cada resultado pertence à identidade da linha, inclusive para arquivos com nomes iguais.
+- Cancelar desabilita novos pedidos para o item e mostra **Cancelando…** enquanto o trabalho encerra. Sinalizar o subprocesso quando aplicável ou interromper o OCR entre páginas. A fila só inicia o próximo item após o encerramento do trabalho ativo. Descartar retornos tardios do item cancelado.
+- Confirmar que a entrada corresponde a um formato do MVP antes de chamar o conversor. Associar entradas rejeitadas ao nome do arquivo na fila. Tratar uma falha recuperável de página como aviso se houver texto em outras páginas. Em PDF escaneado ou misto, verificar se houve texto extraído antes de montar cabeçalhos, pois os cabeçalhos por si só não constituem resultado.
 - A importação dá acesso somente aos arquivos escolhidos e a exportação somente ao destino concedido pelo sistema. O build deve verificar se o subprocesso empacotado consegue ler a entrada sob essas permissões. Se precisar de cópia temporária privada, ela deve ser removida após sucesso, falha ou cancelamento.
 - Separar Markdown e diagnóstico. Erros mostrados ao usuário indicam o próximo passo quando houver recuperação. Diagnósticos omitem conteúdo, caminhos completos e credenciais. A saída é apresentada como texto local sem carregar recursos remotos.
 
 ### Verificação prevista
 
-Usar arquivos sintéticos para validar roteamento, estrutura representativa, OCR, cancelamento, colisão de nomes e falha parcial. Testar foco e VoiceOver, os dois temas, a janela mínima e a redução de movimento. O smoke test abre o `.app` empacotado e percorre importação, conversão e exportação com a rede desligada. A escolha do empacotador e a matriz macOS dependem dessa prova.
+Usar arquivos sintéticos para validar roteamento, estrutura representativa, OCR, cancelamento, colisão de nomes e falha parcial. Testar estados vazio, ativo, concluído, parcial e com erro nas dimensões inicial e mínima, nos dois temas. Verificar também foco, VoiceOver, redução de movimento e operação por teclado. O smoke test abre o `.app` empacotado e percorre importação, conversão e exportação com a rede desligada. Registrar a versão do macOS e a arquitetura desse teste conforme a [spec](PRODUCT.md#validação-da-distribuição).
 
 ### Referências
 
