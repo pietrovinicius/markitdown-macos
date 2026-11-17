@@ -2,6 +2,136 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+@MainActor
+public final class MarkItDownAppDelegate: NSObject, NSApplicationDelegate {
+    public private(set) static weak var shared: MarkItDownAppDelegate?
+    public private(set) weak var managedWindow: NSWindow?
+
+    public override init() {
+        super.init()
+        Self.shared = self
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.shared = self
+        NSApp?.setActivationPolicy(.regular)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWindowLifecycle(_:)),
+            name: NSWindow.didBecomeMainNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWindowLifecycle(_:)),
+            name: NSWindow.didMiniaturizeNotification,
+            object: nil
+        )
+        for window in NSApp?.windows ?? [] where Self.isCandidateWorkspaceWindow(window) {
+            configureManagedWindow(window)
+        }
+        NSApp?.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func handleWindowLifecycle(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, Self.isCandidateWorkspaceWindow(window) {
+            configureManagedWindow(window)
+        }
+    }
+
+    public func applicationDidBecomeActive(_ notification: Notification) {
+        guard let app = NSApp else { return }
+        let candidates = candidateWindows(in: app.windows)
+        let hasVisibleUnminimized = candidates.contains { $0.isVisible && !$0.isMiniaturized }
+        if !hasVisibleUnminimized {
+            _ = restoreWindowsOnDockReopen(in: app.windows)
+        }
+    }
+
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if sender.isHidden {
+            sender.unhide(nil)
+        }
+        _ = restoreWindowsOnDockReopen(in: sender.windows)
+        sender.activate(ignoringOtherApps: true)
+        return true
+    }
+
+    public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    public func configureManagedWindow(_ window: NSWindow) {
+        managedWindow = window
+        window.isReleasedWhenClosed = false
+    }
+
+    @discardableResult
+    public func restoreWindowsOnDockReopen(
+        in windows: [NSWindow],
+        isWindowMiniaturized: ((NSWindow) -> Bool)? = nil,
+        deminiaturizeWindow: ((NSWindow) -> Void)? = nil
+    ) -> Bool {
+        let candidates = candidateWindows(in: windows)
+        guard !candidates.isEmpty else { return false }
+
+        for window in candidates {
+            let miniaturized = isWindowMiniaturized?(window) ?? window.isMiniaturized
+            if miniaturized {
+                if let deminiaturizeWindow {
+                    deminiaturizeWindow(window)
+                } else {
+                    window.deminiaturize(nil)
+                }
+            }
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
+        return true
+    }
+
+    private func candidateWindows(in windows: [NSWindow]) -> [NSWindow] {
+        var candidates = windows.filter { Self.isCandidateWorkspaceWindow($0) }
+        if let managedWindow, !candidates.contains(where: { $0 === managedWindow }) {
+            candidates.insert(managedWindow, at: 0)
+        }
+        return candidates
+    }
+
+    private static func isCandidateWorkspaceWindow(_ window: NSWindow) -> Bool {
+        if window is NSPanel {
+            return false
+        }
+        let className = NSStringFromClass(type(of: window))
+        if className.contains("NSStatusBar") || className.contains("NSMenuWindow") || className.contains("NSToolbar") {
+            return false
+        }
+        return window.styleMask.contains(.titled) || window.canBecomeMain
+    }
+}
+
+private struct ManagedWindowAccessor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = WindowTrackingNSView()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let window = nsView.window {
+            MarkItDownAppDelegate.shared?.configureManagedWindow(window)
+        }
+    }
+
+    private final class WindowTrackingNSView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window {
+                MarkItDownAppDelegate.shared?.configureManagedWindow(window)
+            }
+        }
+    }
+}
+
 public enum MarkItDownWindowLayout {
     public static let initialWidth: CGFloat = 960
     public static let initialHeight: CGFloat = 640
@@ -101,6 +231,7 @@ public struct MarkItDownWorkspaceView: View {
             minHeight: MarkItDownWindowLayout.minHeight
         )
         .background(Color(nsColor: .windowBackgroundColor))
+        .background(ManagedWindowAccessor())
         .overlay {
             if isDropTargeted && !queue.items.isEmpty {
                 RoundedRectangle(cornerRadius: 8)

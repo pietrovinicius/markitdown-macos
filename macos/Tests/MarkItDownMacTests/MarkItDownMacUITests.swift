@@ -106,6 +106,53 @@ final class MarkItDownMacUITests: XCTestCase {
         XCTAssertNil(queue.saveErrorMessage)
     }
 
+    func testDockReopenRestoresMinimizedAndOrderedOutWindow() throws {
+        let queue = ConversionQueueManager(workerRunner: InstantMockWorker())
+        let rootView = MarkItDownWorkspaceView(
+            queue: queue,
+            onRequestAddFiles: {},
+            onRequestSaveSelected: {}
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 960, height: 640),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "MarkItDown"
+        window.contentView = NSHostingView(rootView: rootView)
+
+        let delegate = MarkItDownAppDelegate()
+        delegate.configureManagedWindow(window)
+        window.makeKeyAndOrderFront(nil)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertFalse(window.isReleasedWhenClosed)
+
+        // 1. Simulate user closing the window (close() orders out without deallocating because isReleasedWhenClosed == false)
+        // and clicking the Dock icon when NSApp.windows may no longer list the ordered-out window as visible.
+        window.close()
+        XCTAssertFalse(window.isVisible)
+
+        let handledClosed = delegate.restoreWindowsOnDockReopen(in: [])
+        XCTAssertTrue(handledClosed)
+        XCTAssertTrue(window.isVisible)
+
+        // 2. Simulate minimized window: Dock reopen must deminiaturize and make it visible.
+        window.orderOut(nil)
+        var deminiaturizedCalled = false
+        let handledMinimized = delegate.restoreWindowsOnDockReopen(
+            in: [window],
+            isWindowMiniaturized: { _ in true },
+            deminiaturizeWindow: { win in
+                deminiaturizedCalled = true
+                win.makeKeyAndOrderFront(nil)
+            }
+        )
+        XCTAssertTrue(handledMinimized)
+        XCTAssertTrue(deminiaturizedCalled)
+        XCTAssertTrue(window.isVisible)
+    }
+
     private func assertHostingRenders(
         queue: ConversionQueueManager,
         size: NSSize,

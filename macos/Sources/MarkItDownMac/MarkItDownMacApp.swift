@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 @main
 struct MarkItDownMacApp: App {
+    @NSApplicationDelegateAdaptor(MarkItDownAppDelegate.self) private var appDelegate
     @StateObject private var queue = ConversionQueueManager()
 
     init() {
@@ -16,7 +17,7 @@ struct MarkItDownMacApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("MarkItDown") {
+        Window("MarkItDown", id: "main") {
             MarkItDownWorkspaceView(
                 queue: queue,
                 onRequestAddFiles: presentOpenFilesPanel,
@@ -43,13 +44,13 @@ struct MarkItDownMacApp: App {
             height: MarkItDownWindowLayout.initialHeight
         )
         .commands {
-            CommandGroup(replacing: .newItem) {
+            CommandGroup(after: .newItem) {
                 Button("Adicionar arquivos…") {
                     presentOpenFilesPanel()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
             }
-            CommandGroup( replacing: .saveItem) {
+            CommandGroup(replacing: .saveItem) {
                 Button("Salvar Markdown…") {
                     presentSaveMarkdownPanel()
                 }
