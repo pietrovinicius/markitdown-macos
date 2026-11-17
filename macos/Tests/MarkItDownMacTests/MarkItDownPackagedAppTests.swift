@@ -23,6 +23,10 @@ final class MarkItDownPackagedAppTests: XCTestCase {
             return
         }
 
+        let iconURL = appURL.appendingPathComponent("Contents/Resources/AppIcon.icns")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path), "AppIcon.icns must be bundled in Contents/Resources")
+        XCTAssertEqual(appBundle.infoDictionary?["CFBundleIconFile"] as? String, "AppIcon")
+
         guard let resolved = SubprocessPythonWorkerRunner.resolveBundledWorker(in: appBundle) else {
             XCTFail("Packaged MarkItDown.app did not contain embedded markitdown-worker executable")
             return

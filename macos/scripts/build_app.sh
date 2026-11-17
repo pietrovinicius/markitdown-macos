@@ -56,6 +56,7 @@ mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 cp "${MACOS_DIR}/Resources/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
+cp "${MACOS_DIR}/Resources/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
 cp "${SWIFT_EXECUTABLE}" "${APP_BUNDLE}/Contents/MacOS/MarkItDownMac"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/MarkItDownMac"
 cp -R "${BUILD_DIR}/worker-dist/markitdown-worker" "${APP_BUNDLE}/Contents/Resources/markitdown-worker"
