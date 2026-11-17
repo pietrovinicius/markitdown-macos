@@ -50,3 +50,5 @@ Converter arquivos locais em texto Markdown que a pessoa possa conferir, copiar 
 ## Validação da distribuição
 
 O primeiro alvo de validação é o `.app` local em Apple Silicon. Antes de declarar suporte a uma versão do macOS ou arquitetura, executar nessa combinação o smoke test offline e os casos de OCR em português brasileiro e inglês. A versão mínima, o suporte a Intel e o canal público de distribuição dependem dessa validação.
+
+- **Ambiente validado (smoke test offline + OCR pt-BR/en-US):** macOS `26.6.2` (`Build 25G83`), arquitetura `arm64` (Apple Silicon), bundle autocontido `macos/dist/MarkItDown.app`.

@@ -14,11 +14,15 @@ import logging
 import os
 import re
 import sys
+import types
 import warnings
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
+
+# StrictLocalMarkItDown validates extensions directly and never invokes Magika/ONNX.
+sys.modules.setdefault("magika", types.ModuleType("magika"))
 
 from markitdown import MarkItDown, StreamInfo
 from markitdown._base_converter import DocumentConverter

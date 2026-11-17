@@ -81,7 +81,7 @@ PDFKit inspeciona o texto de cada página. Para o MVP, uma página sem caractere
 
 ### Verificação prevista
 
-Usar arquivos sintéticos para validar roteamento, estrutura representativa, OCR, cancelamento, colisão de nomes e falha parcial. Testar estados vazio, ativo, concluído, parcial e com erro nas dimensões inicial e mínima, nos dois temas. Verificar também foco, VoiceOver, redução de movimento e operação por teclado. O smoke test abre o `.app` empacotado e percorre importação, conversão e exportação com a rede desligada. Registrar a versão do macOS e a arquitetura desse teste conforme a [spec](PRODUCT.md#validação-da-distribuição).
+Usar arquivos sintéticos para validar roteamento, estrutura representativa, OCR, cancelamento, colisão de nomes e falha parcial. Testar estados vazio, ativo, concluído, parcial e com erro nas dimensões inicial e mínima, nos dois temas. Verificar também foco, VoiceOver, redução de movimento e operação por teclado. O smoke test abre o `.app` empacotado e percorre importação, conversão e exportação com a rede desligada. Registrar a versão do macOS e a arquitetura desse teste conforme a [spec](PRODUCT.md#validação-da-distribuição) (validado em macOS `26.6.2` build `25G83`, arquitetura `arm64`).
 
 ### Referências
 
