@@ -33,6 +33,23 @@ jobs:
         if: runner.os == 'Windows' && runner.arch == 'ARM64'
         uses: ./.github/actions/build-arm-cryptography
 
+      - name: Install FLAC for speech transcription tests
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'flac-1.5.0-win.zip'
+          Invoke-WebRequest 'https://github.com/xiph/flac/releases/download/1.5.0/flac-1.5.0-win.zip' -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '53f1500f0d6e7c61379d7fee50d4a9f7f504c650009506d9ba015530d76c0dde') {
+            throw 'Unexpected FLAC archive checksum'
+          }
+          Expand-Archive $archive -DestinationPath $env:RUNNER_TEMP
+          $bin = Join-Path $env:RUNNER_TEMP 'flac-1.5.0-win/Win64'
+          # SpeechRecognition checks for the literal name "flac" without consulting PATHEXT.
+          Copy-Item "$bin/flac.exe" "$bin/flac"
+          & "$bin/flac.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bin >> $env:GITHUB_PATH
+
       - name: Install media tools
         if: runner.os == 'Linux'
         run: |
