@@ -33,7 +33,7 @@ func convert(
 ) async throws -> String
 ```
 
-**RISCO:** não. **BASE:** `4d1112f4e8b404d37dc7cc233778edb435961301`. **STATUS BASE:** `?? docs/superpowers/plans/2026-11-25-markitdown-macos-conversao.md`. Plano aprovado para a correção e atualização local. **COMMIT:** pendente de execução.
+**RISCO:** não. **BASE:** `4d1112f4e8b404d37dc7cc233778edb435961301`. **STATUS BASE:** `?? docs/superpowers/plans/2026-11-25-markitdown-macos-conversao.md`. Plano aprovado para a correção e atualização local. **COMMIT:** `b6a5791`.
 
 - [x] **RED.** Na classe de testes existente, criar testes com prefixo `testWorkerStream`. Usar `tempDir`, `repoRootURL()` e o inicializador público do runner. O conversor controlado usa o Python da venv com `-c`, recebe a URL separada e encerra sozinho com `signal.alarm(8)` se a leitura bloquear. A comparação de sucesso é integral, incluindo a última linha e os acentos.
 
