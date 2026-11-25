@@ -184,7 +184,9 @@ def test_corrupted_files_fail_without_plaintext_or_zip_fallback(
     tmp_path: Path, ext: str
 ) -> None:
     bad_file = tmp_path / f"corrompido{ext}"
-    bad_file.write_text("Conteudo texto puro que nao pode virar markdown", encoding="utf-8")
+    bad_file.write_text(
+        "Conteudo texto puro que nao pode virar markdown", encoding="utf-8"
+    )
 
     proc = _run_worker(bad_file)
     assert proc.returncode == 4
@@ -258,4 +260,3 @@ def test_worker_class_instantiation_and_plugins_disabled(tmp_path: Path) -> None
     with pytest.raises(WorkerConversionError) as exc_info:
         worker.convert_file(missing_path)
     assert exc_info.value.error_code == "file_unreadable"
-
