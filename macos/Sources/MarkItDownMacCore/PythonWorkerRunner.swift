@@ -119,25 +119,43 @@ public final class SubprocessPythonWorkerRunner: DocumentWorkerRunning, @uncheck
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
 
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(
+                        throwing: ConversionDomainError.corruptedFile(
+                            "Não foi possível iniciar o conversor local."
+                        )
+                    )
+                    return
+                }
+
                 onTerminationHandler {
                     if process.isRunning {
                         process.terminate()
-                        kill(process.processIdentifier, SIGTERM)
                     }
                 }
 
-                process.terminationHandler = { proc in
-                    let outData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                Task {
+                    async let outData = Self.drain(stdoutPipe.fileHandleForReading)
+                    async let errData = Self.drain(stderrPipe.fileHandleForReading)
+                    let (stdout, stderr) = await (outData, errData)
+                    let termination = await withCheckedContinuation { waitContinuation in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            process.waitUntilExit()
+                            waitContinuation.resume(
+                                returning: (process.terminationReason, process.terminationStatus)
+                            )
+                        }
+                    }
 
-                    if proc.terminationReason == .uncaughtSignal {
+                    if termination.0 == .uncaughtSignal {
                         continuation.resume(throwing: ConversionDomainError.cancelled)
                         return
                     }
 
-                    let status = proc.terminationStatus
-                    if status == 0 {
-                        let markdown = String(data: outData, encoding: .utf8)?
+                    if termination.1 == 0 {
+                        let markdown = String(data: stdout, encoding: .utf8)?
                             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                         if markdown.isEmpty {
                             continuation.resume(throwing: ConversionDomainError.emptyOutput)
@@ -147,22 +165,19 @@ public final class SubprocessPythonWorkerRunner: DocumentWorkerRunning, @uncheck
                         return
                     }
 
-                    let mappedError = Self.mapFailure(exitCode: status, stderrData: errData)
-                    continuation.resume(throwing: mappedError)
-                }
-
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(
-                        throwing: ConversionDomainError.corruptedFile(
-                            "Não foi possível iniciar o conversor local."
-                        )
-                    )
+                    continuation.resume(throwing: Self.mapFailure(exitCode: termination.1, stderrData: stderr))
                 }
             }
         } onCancel: {
             // Signaled through onTerminationHandler as well
+        }
+    }
+
+    private static func drain(_ reader: FileHandle) async -> Data {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: reader.readDataToEndOfFile())
+            }
         }
     }
 

@@ -38,6 +38,96 @@ final class MarkItDownMacCoreTests: XCTestCase {
         )
     }
 
+    func testWorkerStreamPreservesLargeStdoutAndDrainsStderr() async throws {
+        let arquivo = tempDir.appendingPathComponent("entrada.docx")
+        try Data("amostra".utf8).write(to: arquivo)
+        let script = """
+        import signal, sys
+        signal.alarm(8)
+        sys.stdout.buffer.write(("Revisão do catálogo em São Paulo.\\n" * 8192 + "Fim.").encode())
+        sys.stdout.buffer.flush()
+        sys.stderr.buffer.write(b"." * 262144)
+        """
+        let runner = SubprocessPythonWorkerRunner(
+            executableURL: repoRootURL().appendingPathComponent(".venv/bin/python"),
+            leadingArguments: ["-c", script]
+        )
+
+        let texto = try await runner.convert(fileURL: arquivo) { _ in }
+
+        XCTAssertEqual(texto, String(repeating: "Revisão do catálogo em São Paulo.\n", count: 8192) + "Fim.")
+    }
+
+    func testWorkerStreamMapsFailureAfterLargeStderr() async throws {
+        let arquivo = tempDir.appendingPathComponent("entrada.docx")
+        try Data("amostra".utf8).write(to: arquivo)
+        let script = """
+        import signal, sys
+        signal.alarm(8)
+        sys.stderr.buffer.write(b"." * 262144 + b"\\n")
+        sys.stderr.buffer.write(b'{"error_code":"corrupted_file","user_message":"Falha de leitura."}\\n')
+        sys.stderr.buffer.flush()
+        sys.exit(4)
+        """
+        let runner = SubprocessPythonWorkerRunner(
+            executableURL: repoRootURL().appendingPathComponent(".venv/bin/python"),
+            leadingArguments: ["-c", script]
+        )
+
+        do {
+            _ = try await runner.convert(fileURL: arquivo) { _ in }
+            XCTFail("Esperava erro de arquivo corrompido")
+        } catch let error as ConversionDomainError {
+            guard case .corruptedFile("Falha de leitura.") = error else {
+                return XCTFail("Erro inesperado: \(error)")
+            }
+        }
+    }
+
+    func testWorkerStreamCancelsWhenExecutionCancellationIsRegistered() async throws {
+        let arquivo = tempDir.appendingPathComponent("entrada.docx")
+        try Data("amostra".utf8).write(to: arquivo)
+        let script = """
+        import signal
+        signal.alarm(8)
+        signal.pause()
+        """
+        let runner = SubprocessPythonWorkerRunner(
+            executableURL: repoRootURL().appendingPathComponent(".venv/bin/python"),
+            leadingArguments: ["-c", script]
+        )
+        let inicio = Date()
+
+        do {
+            _ = try await runner.convert(fileURL: arquivo) { terminate in terminate() }
+            XCTFail("Esperava cancelamento")
+        } catch let error as ConversionDomainError {
+            guard case .cancelled = error else {
+                return XCTFail("Erro inesperado: \(error)")
+            }
+        }
+
+        XCTAssertLessThan(Date().timeIntervalSince(inicio), 6)
+    }
+
+    func testWorkerStreamKeepsLaunchFailureMessage() async throws {
+        let arquivo = tempDir.appendingPathComponent("entrada.docx")
+        try Data("amostra".utf8).write(to: arquivo)
+        let runner = SubprocessPythonWorkerRunner(
+            executableURL: tempDir.appendingPathComponent("missing-python"),
+            leadingArguments: ["-c", "pass"]
+        )
+
+        do {
+            _ = try await runner.convert(fileURL: arquivo) { _ in }
+            XCTFail("Esperava falha de inicialização")
+        } catch let error as ConversionDomainError {
+            guard case .corruptedFile("Não foi possível iniciar o conversor local.") = error else {
+                return XCTFail("Erro inesperado: \(error)")
+            }
+        }
+    }
+
     private func generateOfficeFixtures(in directory: URL) throws {
         let root = repoRootURL()
         let pythonURL = root.appendingPathComponent(".venv/bin/python")
