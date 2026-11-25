@@ -166,3 +166,8 @@ cython_debug/
 src/.DS_Store
 .DS_Store
 .cursorrules
+.build/
+macos/.build/
+macos/build/
+macos/dist/
+
